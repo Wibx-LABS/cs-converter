@@ -2,41 +2,42 @@
   <img src="repo-assets/go-fucking-lang.png" alt="Go Image Extractor Logo" width="300">
 </p>
 
-# Image Extractor Utility
+# Extrator de Imagens (Go)
 
-A high-performance command-line tool written in Go to extract image URLs from Excel (`.xlsx`) or CSV (`.csv`) spreadsheets, download them concurrently, convert them to Base64 Data URIs, and structure them in an output folder.
+Uma ferramenta de linha de comando de alta performance escrita em Go para extrair links de imagens de planilhas Excel (`.xlsx`) ou CSV (`.csv`), baixá-las em lote concorrentemente e convertê-las para Base64.
 
-This utility runs entirely in-memory and **does not modify the input spreadsheet**.
-
----
-
-## Features
-
-- **Concurrent Downloading**: Uses a channel-based worker pool (defaults to 20 workers) to download images in parallel.
-- **De-duplication & Caching**: Leverages a thread-safe cache to download duplicate URLs exactly once.
-- **High-Resolution Scaling**: Automatically transforms original image URLs to fetch high-resolution retina variants (e.g. `image@4x.png`).
-- **Resilient Fallback**: Automatically falls back to downloading the original `@1x` variant if the `@4x` asset is missing or private (HTTP 403/404).
-- **Spreadsheet Parsing**: Automatically parses all worksheets in Excel files (using `excelize/v2`) and CSV files (with automatic delimiter detection).
-- **Intelligent File Naming**: Dynamically matches cell coordinates with row identifiers (like reward IDs, names, or slugs) and column headers to output clean, trace-friendly filenames.
+Esta ferramenta roda inteiramente em memória e **não altera a planilha original**.
 
 ---
 
-## Outputs
+## O que a ferramenta faz?
 
-The tool writes all extracted assets to a targeted output directory (default: `./output_images/`):
+1. **Escaneamento**: Varre todas as linhas da planilha identificando células que contêm links de imagem.
+2. **Download Concorrente**: Baixa os arquivos das imagens em paralelo utilizando múltiplos workers para acelerar o processo.
+3. **Resolução Máxima (@4x)**: Tenta baixar automaticamente a versão de alta resolução `@4x` (ex: `imagem@4x.png`). Se não existir no servidor, faz o fallback automático para a versão original `@1x`.
+4. **Cache de Duplicados**: Garante que links idênticos (como logotipos repetidos) sejam baixados apenas uma vez, poupando rede e tempo.
+5. **Base64**: Converte cada imagem em uma string Base64 Data URI.
+
+---
+
+## Estrutura de Retorno
+
+Todos os arquivos são gravados na pasta de destino informada (padrão: `./output_images/`):
 
 ```text
 output_images/
-├── manifest.json      # Master JSON mapping original URL -> Base64 data & local file paths
-├── base64/            # Directory containing raw Base64 Data URI string files (.txt)
-└── binary/            # Directory containing downloaded raw image files (.png, .jpg, etc.)
+├── manifest.json      # Mapeamento geral (URL original -> Base64 e caminhos locais)
+├── base64/            # Arquivos de texto (.txt) contendo apenas a string Base64 de cada imagem
+└── binary/            # Arquivos de imagem originais (.png, .jpg, etc.)
 ```
 
-### Manifest Schema Example (`manifest.json`):
+Os arquivos de saída são nomeados usando o identificador da linha (ex: coluna `name` ou `ID da Recompensa`) combinado com o nome da coluna de origem (ex: `photo_href`).
+
+Exemplo do `manifest.json`:
 ```json
 {
   "https://assets.bonuz.com/prizes/archie-projeto-completo/prize-photo.png": {
-    "base64_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAB...",
+    "base64_data": "data:image/png;base64,iVBORw0KGgoAAAANS...",
     "mime_type": "image/png",
     "binary_file": "binary/archie-projeto-completo_photo_href.png",
     "base64_file": "base64/archie-projeto-completo_photo_href.txt",
@@ -47,91 +48,60 @@ output_images/
 
 ---
 
-## Developer Guide & Automation Integration
+## Como Rodar e Integrar
 
-### 1. Requirements & Prerequisites
-- **To compile/develop**: Go 1.20+ (can be downloaded from [golang.org](https://golang.org/)).
-- **To run**: The compiled native binary does **not** require Go or any external packages/runtimes installed.
+### Pré-requisitos
+- **Para rodar**: O binário compilado não exige nenhuma dependência ou instalação adicional.
+- **Para compilar**: Go 1.20+ instalado.
 
-### 2. Compilation
-Compile the Go source code into a self-contained, native executable binary:
+### Como Compilar o Binário
+Compile o executável de acordo com o sistema operacional de destino:
 
-**For macOS (Intel/Apple Silicon):**
+**Para macOS (Local):**
 ```bash
 go build -o image_extractor main.go
 ```
 
-**For Linux (production servers/containers):**
+**Para Linux (Servidores de automação/Docker):**
 ```bash
 GOOS=linux GOARCH=amd64 go build -o image_extractor main.go
 ```
 
-**For Windows:**
+### Como Rodar (Linha de Comando)
+Execute o binário passando os parâmetros desejados:
+
 ```bash
-GOOS=windows GOARCH=amd64 go build -o image_extractor.exe main.go
+./image_extractor --input "Planilha.xlsx"
 ```
 
-### 3. Command-Line Arguments
-The executable accepts the following flags:
+#### Parâmetros disponíveis (Flags):
+- `--input` *(Obrigatório)*: Caminho para a planilha `.xlsx` ou `.csv` de entrada.
+- `--output` *(Padrão: `output_images`)*: Pasta onde serão salvos os arquivos extraídos.
+- `--column` *(Padrão: `photo/href`)*: Filtra apenas as colunas que contêm esse texto no cabeçalho (use `""` para processar todas as colunas).
+- `--scale` *(Padrão: `4x`)*: Escala de resolução das imagens (`2x`, `3x`, `4x` ou `1x` para original).
+- `--workers` *(Padrão: `20`)*: Quantidade de downloads simultâneos.
 
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--input` | String | *Required* | Path to the input Excel (`.xlsx`) or CSV (`.csv`) file. |
-| `--output` | String | `output_images` | Directory path where output assets should be written. |
-| `--column` | String | `photo/href` | Filters extraction to matching column headers (case-insensitive substring match). Set to `""` to scan all columns. |
-| `--scale` | String | `4x` | High-res scale variant to request (e.g. `2x`, `3x`, `4x`). Set to `""` or `1x` to fetch original resolution. |
-| `--workers` | Integer | `20` | Maximum concurrent download workers. |
+---
 
-### 4. Integration Examples
+## Integração em Automações
 
-#### Bash/Cron Automation:
-A script running on a monthly cron schedule can fetch the latest spreadsheet, run the extractor, and clean up:
+### Exemplo em Script Bash:
 ```bash
 #!/usr/bin/env bash
-set -euo pipefail
+set -e
 
-INPUT_FILE="Clube Bora _ Recompensas da Nuvem Minu.xlsx"
-OUTPUT_DIR="./extracted_assets"
+# Roda o extrator buscando apenas a coluna de foto
+./image_extractor --input "planilha_mensal.xlsx" --output "./saida" --column "photo/href"
 
-# 1. Run the extractor
-./image_extractor \
-  --input "$INPUT_FILE" \
-  --output "$OUTPUT_DIR" \
-  --column "photo/href" \
-  --scale "4x" \
-  --workers 30
-
-# 2. Extract and post-process manifest.json
-# (e.g., loading base64 strings or pushing images to a cloud storage bucket)
-cat "$OUTPUT_DIR/manifest.json" | jq -r 'keys[]' | head -n 5
+# Os arquivos e o manifest estarão disponíveis em ./saida/
 ```
 
-#### Node.js Child Process Wrapper:
-If the dev team has an existing Node.js runner/automation:
+### Exemplo em Node.js (Child Process):
 ```javascript
 const { execFile } = require('child_process');
-const fs = require('fs');
 
-const args = [
-  '--input', 'Clube Bora _ Recompensas da Nuvem Minu.xlsx',
-  '--output', './output_images',
-  '--column', 'photo/href',
-  '--scale', '4x'
-];
-
-execFile('./image_extractor', args, (error, stdout, stderr) => {
-  if (error) {
-    console.error(`Execution failed: ${error.message}`);
-    process.exit(1);
-  }
-  console.log(`Extractor Output:\n${stdout}`);
-  
-  // Read generated manifest JSON
-  const manifest = JSON.parse(fs.readFileSync('./output_images/manifest.json', 'utf8'));
-  console.log(`Processed ${Object.keys(manifest).length} unique images!`);
+execFile('./image_extractor', ['--input', 'dados.xlsx'], (error, stdout) => {
+  if (error) throw error;
+  console.log('Extração concluída com sucesso!');
 });
 ```
-
-### 5. Exit Codes
-- `0`: Success (scanned cells, downloaded images, and generated output successfully).
-- `1` / `non-zero`: Failures (missing required flags, spreadsheet parsing error, directory creation failed).
