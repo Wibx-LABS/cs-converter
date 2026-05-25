@@ -1,0 +1,13 @@
+# Compiled binaries
+image_extractor
+image_extractor.exe
+
+# Local data & outputs
+output_images/
+*.xlsx
+*.csv
+
+# Local logs & environment
+*.log
+image-base64-converter-log.md
+.DS_Store
