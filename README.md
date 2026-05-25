@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="repo-assets/go-fucking-lang.png" alt="Go Image Extractor Logo" width="300">
+</p>
+
 # Image Extractor Utility
 
 A high-performance command-line tool written in Go to extract image URLs from Excel (`.xlsx`) or CSV (`.csv`) spreadsheets, download them concurrently, convert them to Base64 Data URIs, and structure them in an output folder.
