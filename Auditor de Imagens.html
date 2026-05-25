@@ -9,9 +9,10 @@
     <!-- Clash Display Font -->
     <link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet">
     
-    <!-- Spreadsheet Libraries via CDNs -->
+    <!-- Spreadsheet & OCR Libraries via CDNs -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
     <style>
         /* ============================================================
@@ -117,24 +118,43 @@
         }
 
         /* ── Drag & Drop Zone ── */
+        .upload-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        @media (max-width: 768px) {
+            .upload-container {
+                grid-template-columns: 1fr;
+            }
+        }
         .drop-zone {
             width: 100%;
             background: var(--surface);
             border: 2px dashed var(--border);
             border-radius: var(--radius-xl);
-            padding: 4rem 2rem;
+            padding: 3.5rem 2rem;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s ease;
-            margin-bottom: 1.5rem;
             position: relative;
             overflow: hidden;
             box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
         .drop-zone:hover, .drop-zone.dragover {
             border-color: var(--green);
             background: var(--green-dim);
             box-shadow: 0 0 30px rgba(34, 255, 123, 0.1);
+        }
+        .drop-zone.secondary-drop:hover, .drop-zone.secondary-drop.dragover {
+            border-color: #8a2be2;
+            background: rgba(138, 43, 226, 0.05);
+            box-shadow: 0 0 30px rgba(138, 43, 226, 0.15);
         }
         .drop-zone-icon {
             font-size: 2.5rem;
@@ -145,16 +165,67 @@
         .drop-zone:hover .drop-zone-icon {
             color: var(--green);
         }
+        .drop-zone.secondary-drop:hover .drop-zone-icon {
+            color: #10a5f5;
+        }
         .drop-zone h3 {
-            font-size: 1.25rem;
+            font-size: 1.15rem;
             font-weight: 600;
             margin-bottom: 0.5rem;
         }
         .drop-zone p {
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             color: var(--text-2);
         }
         .file-input { display: none; }
+        
+        .upload-status-badge {
+            display: inline-block;
+            margin-top: 1rem;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #000;
+            background: var(--green);
+            padding: 0.3rem 0.75rem;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            box-shadow: 0 4px 10px rgba(34, 255, 123, 0.3);
+            animation: pulse 2s infinite;
+        }
+        .upload-status-badge.purple {
+            background: #8a2be2;
+            color: #fff;
+            box-shadow: 0 4px 10px rgba(138, 43, 226, 0.3);
+        }
+
+        /* ── OCR Loader & Summary Card ── */
+        .ocr-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 3rem 2rem;
+            text-align: center;
+            box-shadow: var(--shadow);
+            max-width: 600px;
+            margin: 2rem auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            width: 100%;
+        }
+        .ocr-spinner {
+            width: 60px;
+            height: 60px;
+            border: 5px solid rgba(255,255,255,0.05);
+            border-top-color: var(--green);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
 
         /* ── Setup Layout columns ── */
         .panel-layout {
@@ -544,12 +615,23 @@
 
     <div class="dashboard">
 
-        <!-- 1. Drop Zone (Upload State) -->
-        <div id="dropZone" class="drop-zone">
-            <div class="drop-zone-icon">🗂️</div>
-            <h3>Arraste e solte sua planilha Excel (.xlsx) ou CSV aqui</h3>
-            <p>Ou clique para navegar e selecionar de seu computador</p>
-            <input type="file" id="fileInput" class="file-input" accept=".xlsx,.csv">
+        <!-- 1. Upload Zones (Upload State) -->
+        <div id="uploadContainer" class="upload-container" style="display:grid;">
+            <div id="dropZoneSheet" class="drop-zone">
+                <div class="drop-zone-icon">🗂️</div>
+                <h3>Planilha Excel (.xlsx) ou CSV</h3>
+                <p>Arraste e solte ou clique para selecionar</p>
+                <input type="file" id="fileInputSheet" class="file-input" accept=".xlsx,.csv">
+                <div id="sheetStatusBadge" class="upload-status-badge" style="display:none;">Planilha Carregada</div>
+            </div>
+
+            <div id="dropZoneManifest" class="drop-zone secondary-drop">
+                <div class="drop-zone-icon">🤖</div>
+                <h3>Arquivo manifest.json (Opcional)</h3>
+                <p>Arraste e solte para ativar validação OCR automática</p>
+                <input type="file" id="fileInputManifest" class="file-input" accept=".json">
+                <div id="manifestStatusBadge" class="upload-status-badge purple" style="display:none;">Manifesto Carregado</div>
+            </div>
         </div>
 
         <!-- 2. Mapping Panel (Active after upload) -->
@@ -595,6 +677,55 @@
 
                 <button id="startAuditBtn" class="btn" style="margin-top:0.5rem;">Iniciar Validação</button>
             </div>
+        </div>
+
+        <!-- 2.5 OCR Processing Section (Active during OCR scanning) -->
+        <div id="ocrSection" class="state-section" style="flex-direction:column; align-items:center; justify-content:center;">
+            
+            <!-- OCR Loading State -->
+            <div id="ocrLoader" class="ocr-card" style="display:flex;">
+                <div class="ocr-spinner"></div>
+                <h2 style="font-size:1.4rem; font-weight:700;">Analisando imagens com Inteligência Artificial (OCR)...</h2>
+                <p style="color:var(--text-2); font-size:0.88rem; max-width:400px; line-height:1.5; margin-bottom:0.5rem;">
+                    Lendo preços e marcas diretamente das imagens para auto-aprovar registros e economizar seu tempo.
+                </p>
+                <div class="progress-container" style="width:100%; border:none; background:transparent; padding:0; margin:0 0 0.5rem 0;">
+                    <div class="progress-bar-wrap">
+                        <div id="ocrProgressBarFill" class="progress-bar-fill"></div>
+                    </div>
+                </div>
+                <div id="ocrProgressText" style="font-size:0.85rem; font-weight:600; color:var(--green);">Processando 0 de 0 (0%)</div>
+            </div>
+
+            <!-- OCR Results Summary State -->
+            <div id="ocrSummary" class="ocr-card" style="display:none;">
+                <div style="font-size:3.5rem; animation: pulse 2s infinite;">🤖</div>
+                <h2 style="font-size:1.6rem; font-weight:700;">Auditoria por IA Concluída!</h2>
+                <p style="color:var(--text-2); font-size:0.92rem; max-width:450px; line-height:1.5;">
+                    O scanner de imagem pre-aprovou itens onde o preço e a marca bateram perfeitamente com os dados da planilha.
+                </p>
+
+                <div class="metrics-grid" style="width:100%; max-width:450px; margin: 0.5rem 0;">
+                    <div class="metric-card">
+                        <div id="ocrTotalProcessed" class="metric-value">0</div>
+                        <div class="metric-label">Analisados</div>
+                    </div>
+                    <div class="metric-card">
+                        <div id="ocrTotalAutoApproved" class="metric-value pass">0</div>
+                        <div class="metric-label">Auto-Aprovados</div>
+                    </div>
+                    <div class="metric-card">
+                        <div id="ocrTotalRequiresReview" class="metric-value fail">0</div>
+                        <div class="metric-label">Revisão Manual</div>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:1rem; width:100%; max-width:450px; margin-top:0.5rem;">
+                    <button id="startManualAuditOnlyBtn" class="btn" style="flex-grow:1;">Revisar Divergentes</button>
+                    <button id="startAllAuditBtn" class="btn btn-secondary" style="flex-grow:1;">Revisar Todos</button>
+                </div>
+            </div>
+
         </div>
 
         <!-- 3. Review Wizard Section -->
@@ -706,16 +837,39 @@
         let targets = [];           // Extracted rows with valid image URLs
         let approvedIndexes = new Set(); // Row indexes of approved items
         let rejectedIndexes = new Set(); // Row indexes of rejected items
-        let currentIndex = 0;       // Current pointer in targets list
+        let currentIndex = 0;       // Current pointer in activeReviewQueue
+        
+        let manifestData = null;    // Loaded manifest JSON mapping URL -> metadata
+        let ocrFailedItems = [];    // Rows that failed OCR or need review
+        let ocrApprovedItems = [];  // Rows auto-approved by OCR
+        let activeReviewQueue = []; // Currently active review queue
 
         // DOM elements
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
+        const uploadContainer = document.getElementById('uploadContainer');
+        const dropZoneSheet = document.getElementById('dropZoneSheet');
+        const dropZoneManifest = document.getElementById('dropZoneManifest');
+        const fileInputSheet = document.getElementById('fileInputSheet');
+        const fileInputManifest = document.getElementById('fileInputManifest');
+        const sheetStatusBadge = document.getElementById('sheetStatusBadge');
+        const manifestStatusBadge = document.getElementById('manifestStatusBadge');
+        
         const sheetSelectGroup = document.getElementById('sheetSelectGroup');
         const sheetSelect = document.getElementById('sheetSelect');
         const setupSection = document.getElementById('setupSection');
         const reviewSection = document.getElementById('reviewSection');
         const exportSection = document.getElementById('exportSection');
+        
+        // OCR Intermediate Section Elements
+        const ocrSection = document.getElementById('ocrSection');
+        const ocrLoader = document.getElementById('ocrLoader');
+        const ocrSummary = document.getElementById('ocrSummary');
+        const ocrProgressBarFill = document.getElementById('ocrProgressBarFill');
+        const ocrProgressText = document.getElementById('ocrProgressText');
+        const ocrTotalProcessed = document.getElementById('ocrTotalProcessed');
+        const ocrTotalAutoApproved = document.getElementById('ocrTotalAutoApproved');
+        const ocrTotalRequiresReview = document.getElementById('ocrTotalRequiresReview');
+        const startManualAuditOnlyBtn = document.getElementById('startManualAuditOnlyBtn');
+        const startAllAuditBtn = document.getElementById('startAllAuditBtn');
         
         // Select mappings
         const colUrl = document.getElementById('colUrl');
@@ -747,24 +901,61 @@
         const resBadge = document.getElementById('resBadge');
 
         // ── Drag & Drop Event Listeners ──
-        dropZone.addEventListener('click', () => fileInput.click());
-        dropZone.addEventListener('dragover', (e) => {
+        
+        // 1. Spreadsheet Drop Zone
+        dropZoneSheet.addEventListener('click', () => fileInputSheet.click());
+        dropZoneSheet.addEventListener('dragover', (e) => {
             e.preventDefault();
-            dropZone.classList.add('dragover');
+            dropZoneSheet.classList.add('dragover');
         });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-        dropZone.addEventListener('drop', (e) => {
+        dropZoneSheet.addEventListener('dragleave', () => dropZoneSheet.classList.remove('dragover'));
+        dropZoneSheet.addEventListener('drop', (e) => {
             e.preventDefault();
-            dropZone.classList.remove('dragover');
+            dropZoneSheet.classList.remove('dragover');
             if (e.dataTransfer.files.length > 0) {
                 handleFile(e.dataTransfer.files[0]);
             }
         });
-        fileInput.addEventListener('change', (e) => {
+        fileInputSheet.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
                 handleFile(e.target.files[0]);
             }
         });
+
+        // 2. Manifest Drop Zone
+        dropZoneManifest.addEventListener('click', () => fileInputManifest.click());
+        dropZoneManifest.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZoneManifest.classList.add('dragover');
+        });
+        dropZoneManifest.addEventListener('dragleave', () => dropZoneManifest.classList.remove('dragover'));
+        dropZoneManifest.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZoneManifest.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleManifestFile(e.dataTransfer.files[0]);
+            }
+        });
+        fileInputManifest.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleManifestFile(e.target.files[0]);
+            }
+        });
+
+        // ── Manifest File Handler ──
+        function handleManifestFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    manifestData = JSON.parse(e.target.result);
+                    manifestStatusBadge.style.display = 'inline-block';
+                    console.log("Manifest JSON loaded successfully:", Object.keys(manifestData).length, "keys.");
+                } catch (err) {
+                    alert(`Erro ao ler manifest.json: ${err.message}`);
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
 
         // ── File Handler ──
         let workbookInstance = null;
@@ -796,6 +987,7 @@
                     sheetSelect.value = targetSheet;
                     sheetSelectGroup.style.display = 'block';
                     
+                    sheetStatusBadge.style.display = 'inline-block';
                     loadExcelSheet(targetSheet);
                 };
                 reader.readAsArrayBuffer(file);
@@ -806,6 +998,7 @@
                             rawData = results.data;
                             headers = rawData[0] || [];
                             sheetSelectGroup.style.display = 'none';
+                            sheetStatusBadge.style.display = 'inline-block';
                             initMappingSelectors();
                         },
                         error: function(err) {
@@ -880,11 +1073,158 @@
             
             // Activate setup panel
             setupSection.classList.add('active');
-            dropZone.style.display = 'none';
+        }
+
+        // ── OCR Background Worker & Matching Helpers ──
+        let ocrWorker = null;
+
+        async function getOCRWorker() {
+            if (!ocrWorker) {
+                ocrWorker = await Tesseract.createWorker('por+eng');
+            }
+            return ocrWorker;
+        }
+
+        async function terminateOCRWorker() {
+            if (ocrWorker) {
+                await ocrWorker.terminate();
+                ocrWorker = null;
+            }
+        }
+
+        function preProcessImage(imgEl) {
+            const canvas = document.createElement('canvas');
+            canvas.width = imgEl.naturalWidth || imgEl.width;
+            canvas.height = imgEl.naturalHeight || imgEl.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(imgEl, 0, 0);
+            
+            try {
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imgData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i+1];
+                    const b = data[i+2];
+                    // Grayscale
+                    const v = 0.299 * r + 0.587 * g + 0.114 * b;
+                    // Binarization (threshold 120 works great for text)
+                    const finalVal = v > 120 ? 255 : 0;
+                    data[i] = finalVal;
+                    data[i+1] = finalVal;
+                    data[i+2] = finalVal;
+                }
+                ctx.putImageData(imgData, 0, 0);
+                return canvas.toDataURL();
+            } catch (e) {
+                console.warn("Canvas binarization tainted due to CORS. Processing raw image.");
+                return imgEl.src;
+            }
+        }
+
+        function matchPrice(expected, ocrText) {
+            if (!expected || expected === '-' || expected.trim() === '') return true;
+            const expectedClean = expected.replace(/[^\d]/g, '');
+            if (!expectedClean) return true;
+            
+            const ocrClean = ocrText.replace(/[^\d]/g, '');
+            return ocrClean.includes(expectedClean);
+        }
+
+        function matchBrand(expected, ocrText) {
+            if (!expected || expected === '-' || expected.trim() === '') return true;
+            const cleanExpected = expected.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!cleanExpected) return true;
+            
+            const cleanOcr = ocrText.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (cleanOcr.includes(cleanExpected)) return true;
+            
+            const expectedWords = expected.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+            if (expectedWords.length > 0) {
+                const matchedWords = expectedWords.filter(w => cleanOcr.includes(w));
+                if (matchedWords.length / expectedWords.length >= 0.6) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        async function runOcrPipeline() {
+            setupSection.classList.remove('active');
+            uploadContainer.style.display = 'none';
+            ocrSection.classList.add('active');
+            ocrLoader.style.display = 'flex';
+            ocrSummary.style.display = 'none';
+
+            ocrFailedItems = [];
+            ocrApprovedItems = [];
+            approvedIndexes.clear();
+            rejectedIndexes.clear();
+
+            const total = targets.length;
+            let processedCount = 0;
+            let autoApprovedCount = 0;
+            
+            try {
+                const worker = await getOCRWorker();
+
+                for (let i = 0; i < targets.length; i++) {
+                    const target = targets[i];
+                    const manifestEntry = manifestData[target.url];
+                    let base64Uri = null;
+                    if (manifestEntry && manifestEntry.base64_data) {
+                        base64Uri = manifestEntry.base64_data;
+                    }
+
+                    if (base64Uri) {
+                        const img = new Image();
+                        img.src = base64Uri;
+                        await new Promise((resolve) => {
+                            img.onload = resolve;
+                            img.onerror = resolve;
+                        });
+
+                        const cleanImageUri = preProcessImage(img);
+                        const result = await worker.recognize(cleanImageUri);
+                        const text = result.data.text || "";
+
+                        const priceIsMatch = matchPrice(target.price, text);
+                        const brandIsMatch = matchBrand(target.brand, text);
+
+                        if (priceIsMatch && brandIsMatch) {
+                            ocrApprovedItems.push(target);
+                            approvedIndexes.add(target.rowIdx);
+                            autoApprovedCount++;
+                        } else {
+                            ocrFailedItems.push(target);
+                        }
+                    } else {
+                        ocrFailedItems.push(target);
+                    }
+
+                    processedCount++;
+                    const pct = Math.round((processedCount / total) * 100);
+                    ocrProgressBarFill.style.width = `${pct}%`;
+                    ocrProgressText.textContent = `Processando ${processedCount} de ${total} (${pct}%)`;
+                }
+            } catch (err) {
+                console.error("OCR validation crashed: ", err);
+                alert("Houve um erro no scanner OCR. Vamos direcioná-lo para revisão manual.");
+                ocrFailedItems = [...targets];
+            } finally {
+                await terminateOCRWorker();
+            }
+
+            ocrLoader.style.display = 'none';
+            ocrSummary.style.display = 'flex';
+            
+            ocrTotalProcessed.textContent = total;
+            ocrTotalAutoApproved.textContent = autoApprovedCount;
+            ocrTotalRequiresReview.textContent = ocrFailedItems.length;
         }
 
         // ── Validation Loop Setup ──
-        startAuditBtn.addEventListener('click', () => {
+        startAuditBtn.addEventListener('click', async () => {
             if (!colUrl.value) {
                 alert('A coluna de URL de imagem é obrigatória!');
                 return;
@@ -925,23 +1265,48 @@
                 return;
             }
 
+            if (manifestData) {
+                // Execute automatic OCR batch analysis first
+                await runOcrPipeline();
+            } else {
+                // Directly launch manual audit on all items
+                activeReviewQueue = [...targets];
+                currentIndex = 0;
+                setupSection.classList.remove('active');
+                uploadContainer.style.display = 'none';
+                reviewSection.classList.add('active');
+                renderItem();
+            }
+        });
+
+        // ── OCR Summary Buttons Routing ──
+        startManualAuditOnlyBtn.addEventListener('click', () => {
+            activeReviewQueue = [...ocrFailedItems];
             currentIndex = 0;
-            setupSection.classList.remove('active');
+            ocrSection.classList.remove('active');
+            reviewSection.classList.add('active');
+            renderItem();
+        });
+
+        startAllAuditBtn.addEventListener('click', () => {
+            activeReviewQueue = [...targets];
+            currentIndex = 0;
+            ocrSection.classList.remove('active');
             reviewSection.classList.add('active');
             renderItem();
         });
 
         // ── Render Item ──
         function renderItem() {
-            if (currentIndex < 0 || currentIndex >= targets.length) {
+            if (currentIndex < 0 || currentIndex >= activeReviewQueue.length) {
                 showExportSection();
                 return;
             }
 
-            const item = targets[currentIndex];
+            const item = activeReviewQueue[currentIndex];
             
             // Set stats/progress
-            const total = targets.length;
+            const total = activeReviewQueue.length;
             const currentItemNum = currentIndex + 1;
             const pct = Math.round((currentIndex / total) * 100);
             progressBarFill.style.width = `${pct}%`;
@@ -997,7 +1362,7 @@
 
         // ── Action Handlers ──
         approveBtn.addEventListener('click', () => {
-            const item = targets[currentIndex];
+            const item = activeReviewQueue[currentIndex];
             approvedIndexes.add(item.rowIdx);
             rejectedIndexes.delete(item.rowIdx);
             
@@ -1006,7 +1371,7 @@
         });
 
         rejectBtn.addEventListener('click', () => {
-            const item = targets[currentIndex];
+            const item = activeReviewQueue[currentIndex];
             rejectedIndexes.add(item.rowIdx);
             approvedIndexes.delete(item.rowIdx);
             
@@ -1080,12 +1445,19 @@
 
         restartBtn.addEventListener('click', () => {
             exportSection.classList.remove('active');
-            dropZone.style.display = 'block';
-            fileInput.value = '';
+            uploadContainer.style.display = 'grid';
+            fileInputSheet.value = '';
+            fileInputManifest.value = '';
+            sheetStatusBadge.style.display = 'none';
+            manifestStatusBadge.style.display = 'none';
             workbookInstance = null;
+            manifestData = null;
             rawData = [];
             headers = [];
             targets = [];
+            ocrFailedItems = [];
+            ocrApprovedItems = [];
+            activeReviewQueue = [];
         });
 
     </script>
