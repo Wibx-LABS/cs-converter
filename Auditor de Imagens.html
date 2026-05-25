@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiBX | Auditor de Imagens & OCR</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='160' fill='%2322ff7b'/%3E%3Cg transform='translate(128, 128)' fill='%23070707'%3E%3Crect width='256' height='256' rx='32'/%3E%3Crect x='40' y='40' width='176' height='60' rx='12' fill='%2322ff7b'/%3E%3Ccircle cx='68' cy='150' r='18' fill='%2322ff7b'/%3E%3Ccircle cx='128' cy='150' r='18' fill='%2322ff7b'/%3E%3Ccircle cx='188' cy='150' r='18' fill='%2322ff7b'/%3E%3Ccircle cx='68' cy='210' r='18' fill='%2322ff7b'/%3E%3Ccircle cx='128' cy='210' r='18' fill='%2322ff7b'/%3E%3Ccircle cx='188' cy='210' r='18' fill='%2322ff7b'/%3E%3C/g%3E%3C/svg%3E">
+    
+    <!-- Clash Display Font -->
+    <link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet">
+    
+    <!-- Libraries via CDNs -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+    <style>
+        /* ============================================================
+           WiBX · Auditor de Imagens & OCR
+           Brand Style System matching Calculadora Wibx - UAU
+           ============================================================ */
+
+        :root {
+            --green:        #22ff7b;
+            --green-d:      #0ec95a;
+            --green-dim:    rgba(34, 255, 123, 0.09);
+            --green-border: rgba(34, 255, 123, 0.20);
+            --red:          #ff4646;
+            --red-dim:      rgba(255, 70, 70, 0.1);
+            --bg:           #070707;
+            --surface:      #101010;
+            --surface-2:    #161616;
+            --text:         #ffffff;
+            --text-2:       #888888;
+            --text-3:       #444444;
+            --border:       rgba(255,255,255,0.07);
+            --radius-xl:    22px;
+            --radius:       12px;
+            --radius-sm:    8px;
+            --shadow:       0 32px 80px rgba(0,0,0,0.65);
+        }
+
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+        html, body { max-width: 100%; overflow-x: hidden; }
+
+        body {
+            font-family: 'Clash Display', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+            padding-bottom: 3rem;
+        }
+
+        /* ── WiBX signature green glows ── */
+        body::before {
+            content: '';
+            position: fixed;
+            bottom: -400px; right: -400px;
+            width: 1100px; height: 1100px;
+            background: radial-gradient(circle, rgba(34,255,123,0.11) 0%, transparent 60%);
+            pointer-events: none; z-index: 0;
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            top: -200px; left: -200px;
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(34,255,123,0.035) 0%, transparent 65%);
+            pointer-events: none; z-index: 0;
+        }
+
+        /* ── Header ── */
+        .header {
+            width: 100%;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            z-index: 10;
+        }
+        .header-inner {
+            max-width: 1220px;
+            margin: 0 auto;
+            padding: 0.85rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .brand { display:flex; align-items:center; gap:1.25rem; }
+        .brand-logo { height:34px; width:auto; }
+        .brand-divider { width:1px; height:28px; background:rgba(255,255,255,0.15); }
+        .brand h1 { font-size:1.1rem; font-weight:500; color:var(--text-2); }
+        .brand h1 span { color:var(--green); font-weight:700; }
+        
+        .badge {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--green);
+            background: var(--green-dim);
+            border: 1px solid var(--green-border);
+            border-radius: 20px;
+            padding: 0.25rem 0.75rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        /* ── Container ── */
+        .dashboard {
+            width: 100%; max-width: 1220px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem 0;
+            position: relative; z-index: 1;
+            animation: fadeUp 0.5s ease-out;
+        }
+        @keyframes fadeUp {
+            from { opacity:0; transform:translateY(22px); }
+            to   { opacity:1; transform:translateY(0); }
+        }
+
+        /* ── Drag & Drop Zone ── */
+        .drop-zone {
+            width: 100%;
+            background: var(--surface);
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-xl);
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 1.5rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--green);
+            background: var(--green-dim);
+            box-shadow: 0 0 30px rgba(34, 255, 123, 0.1);
+        }
+        .drop-zone-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-2);
+            transition: color 0.3s;
+        }
+        .drop-zone:hover .drop-zone-icon {
+            color: var(--green);
+        }
+        .drop-zone h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .drop-zone p {
+            font-size: 0.85rem;
+            color: var(--text-2);
+        }
+        .file-input { display: none; }
+
+        /* ── Grid Layout columns ── */
+        .panel-layout {
+            display: grid;
+            grid-template-columns: 5fr 7fr;
+            gap: 1.25rem;
+            margin-bottom: 1.25rem;
+            align-items: stretch;
+        }
+        @media (max-width: 900px) {
+            .panel-layout { grid-template-columns: 1fr; }
+        }
+
+        /* ── Glassmorphic Panels ── */
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 1.75rem;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+        .panel-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* ── Form Inputs & Mapping ── */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+        .form-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-2);
+        }
+        .form-select, .form-input {
+            width: 100%;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.75rem 1rem;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.88rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+        .form-select:focus, .form-input:focus {
+            border-color: var(--green);
+            box-shadow: 0 0 10px var(--green-dim);
+        }
+
+        /* ── Button ── */
+        .btn {
+            background: var(--green);
+            color: #000;
+            border: none;
+            border-radius: var(--radius);
+            padding: 0.85rem 1.5rem;
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 0.92rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            box-shadow: 0 5px 15px rgba(34, 255, 123, 0.3);
+        }
+        .btn:hover {
+            background: var(--text);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 255, 255, 0.1);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .btn:disabled {
+            background: var(--surface-2) !important;
+            color: var(--text-3) !important;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+            border: 1px solid var(--border);
+        }
+        .btn-secondary {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+            box-shadow: none;
+        }
+        .btn-secondary:hover {
+            border-color: var(--text);
+            background: rgba(255,255,255,0.05);
+        }
+        .btn-danger {
+            background: var(--red);
+            color: var(--text);
+            box-shadow: 0 5px 15px rgba(255, 70, 70, 0.3);
+        }
+        .btn-danger:hover {
+            background: #ff6868;
+        }
+
+        /* ── Live Log Terminal ── */
+        .terminal {
+            background: #050505;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem;
+            font-family: monospace;
+            font-size: 0.78rem;
+            color: #ccc;
+            height: 250px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+        .terminal-log {
+            line-height: 1.4;
+            animation: fadeIn 0.2s ease;
+        }
+        .terminal-log.success { color: var(--green); }
+        .terminal-log.error { color: var(--red); }
+        .terminal-log.info { color: #52a8ff; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Progress Metrics ── */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+        }
+        @media (max-width: 600px) {
+            .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        .metric-card {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.85rem 1rem;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        .metric-value.pass { color: var(--green); }
+        .metric-value.fail { color: var(--red); }
+        .metric-label {
+            font-size: 0.62rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-2);
+        }
+
+        /* ── Progress Bar ── */
+        .progress-bar-container {
+            width: 100%;
+            height: 6px;
+            background: var(--surface-2);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--green);
+            box-shadow: 0 0 10px var(--green);
+            transition: width 0.3s ease;
+        }
+
+        /* ── Split Screen Review Wizard ── */
+        .review-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            align-items: stretch;
+            margin-top: 1.5rem;
+        }
+        @media (max-width: 800px) {
+            .review-layout { grid-template-columns: 1fr; }
+        }
+
+        .image-viewer-card {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            position: relative;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.5);
+        }
+        .review-img {
+            max-width: 100%;
+            max-height: 380px;
+            object-fit: contain;
+            border-radius: var(--radius-sm);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+            transition: transform 0.3s;
+        }
+        .review-img:hover {
+            transform: scale(1.05);
+        }
+
+        .meta-detail-card {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+        .meta-field {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem;
+        }
+        .meta-field-label {
+            font-size: 0.68rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-2);
+            margin-bottom: 0.3rem;
+        }
+        .meta-field-value {
+            font-size: 0.95rem;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+        .meta-row-2col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .ocr-box {
+            font-family: monospace;
+            font-size: 0.8rem;
+            background: #070707;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 0.75rem;
+            min-height: 80px;
+            max-height: 150px;
+            overflow-y: auto;
+            color: #ddd;
+        }
+
+        .failure-banner {
+            background: var(--red-dim);
+            border: 1px solid rgba(255, 70, 70, 0.2);
+            border-radius: var(--radius);
+            padding: 0.85rem 1.1rem;
+            color: #ff8888;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .failure-banner-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--red);
+            box-shadow: 0 0 10px var(--red);
+        }
+
+        .action-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-top: auto;
+        }
+        .action-button-group {
+            display: flex;
+            gap: 1rem;
+            flex-grow: 1;
+        }
+        .action-button-group .btn {
+            flex-grow: 1;
+        }
+
+        .hotkey-indicator {
+            font-size: 0.65rem;
+            color: var(--text-3);
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-top: 0.25rem;
+        }
+
+        .review-status-bar {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 0.35rem 1rem;
+            font-size: 0.75rem;
+            color: var(--text-2);
+            font-weight: 600;
+            align-self: center;
+        }
+
+        /* ── Hidden Canvas for image loading ── */
+        #hiddenCanvas { display: none; }
+
+        /* ── App States ── */
+        .state-section { display: none; }
+        .state-section.active { display: flex; }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="brand">
+                <svg class="brand-logo" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="512" height="512" rx="160" fill="#22ff7b"/>
+                    <g transform="translate(128, 128)" fill="#070707">
+                        <rect width="256" height="256" rx="32"/>
+                        <rect x="40" y="40" width="176" height="60" rx="12" fill="#22ff7b"/>
+                        <circle cx="68" cy="150" r="18" fill="#22ff7b"/>
+                        <circle cx="128" cy="150" r="18" fill="#22ff7b"/>
+                        <circle cx="188" cy="150" r="18" fill="#22ff7b"/>
+                        <circle cx="68" cy="210" r="18" fill="#22ff7b"/>
+                        <circle cx="128" cy="210" r="18" fill="#22ff7b"/>
+                        <circle cx="188" cy="210" r="18" fill="#22ff7b"/>
+                    </g>
+                </svg>
+                <div class="brand-divider"></div>
+                <h1>WiBX | <span>Auditor de Imagens & OCR</span></h1>
+            </div>
+            <div class="badge">OCR Engine v5.0</div>
+        </div>
+    </header>
+
+    <div class="dashboard">
+
+        <!-- 1. Drop Zone (Upload State) -->
+        <div id="dropZone" class="drop-zone">
+            <div class="drop-zone-icon">🗂️</div>
+            <h3>Arraste e solte sua planilha Excel (.xlsx) ou CSV aqui</h3>
+            <p>Ou clique para navegar e selecionar de seu computador</p>
+            <input type="file" id="fileInput" class="file-input" accept=".xlsx,.csv">
+        </div>
+
+        <!-- 2. Mapping Panel & Statistics (Active after upload) -->
+        <div id="setupSection" class="state-section panel-layout">
+            
+            <!-- Left: Settings & Mappings -->
+            <div class="panel">
+                <div class="panel-title">Mapeamento de Colunas</div>
+                
+                <div class="form-group" id="sheetSelectGroup" style="display:none;">
+                    <label class="form-label" for="sheetSelect">Aba da Planilha (Sheet)</label>
+                    <select id="sheetSelect" class="form-select"></select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="colUrl">Coluna de Imagem (URL)</label>
+                    <select id="colUrl" class="form-select"></select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="colId">Identificador (ID / Nome)</label>
+                    <select id="colId" class="form-select"></select>
+                </div>
+
+                <div class="meta-row-2col">
+                    <div class="form-group">
+                        <label class="form-label" for="colBrand">Aliança / Marca</label>
+                        <select id="colBrand" class="form-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="colValue">Valor Oficial</label>
+                        <select id="colValue" class="form-select"></select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="colTitle">Título do Produto</label>
+                    <select id="colTitle" class="form-select"></select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="colDesc">Descrição</label>
+                    <select id="colDesc" class="form-select"></select>
+                </div>
+
+                <button id="startAuditBtn" class="btn" style="margin-top:0.5rem;">Iniciar Auditoria</button>
+            </div>
+
+            <!-- Right: Live Monitor Terminal -->
+            <div class="panel">
+                <div class="panel-title">
+                    Monitoramento OCR
+                    <div id="progressPercent" style="font-size:0.9rem; color:var(--green); font-weight:700;">0%</div>
+                </div>
+                
+                <!-- Metrics Grid -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div id="valTotal" class="metric-value">0</div>
+                        <div class="metric-label">Total Links</div>
+                    </div>
+                    <div class="metric-card">
+                        <div id="valProcessed" class="metric-value">0</div>
+                        <div class="metric-label">Verificados</div>
+                    </div>
+                    <div class="metric-card">
+                        <div id="valPassed" class="metric-value pass">0</div>
+                        <div class="metric-label">Aprovados</div>
+                    </div>
+                    <div class="metric-card">
+                        <div id="valFailed" class="metric-value fail">0</div>
+                        <div class="metric-label">Na Fila</div>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-bar-container">
+                    <div id="progressBarFill" class="progress-bar-fill"></div>
+                </div>
+
+                <!-- Logger Console -->
+                <div id="terminal" class="terminal">
+                    <div class="terminal-log info">Aguardando início da auditoria...</div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; gap:1rem;">
+                    <button id="stopAuditBtn" class="btn btn-secondary" style="flex-grow:1;" disabled>Pausar</button>
+                    <button id="goToReviewBtn" class="btn" style="flex-grow:1;" disabled>Revisar Pendentes (0)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Review Wizard Section -->
+        <div id="reviewSection" class="state-section panel" style="flex-direction:column;">
+            <div class="panel-title">
+                Revisão Manual de Imagens
+                <div id="reviewCounter" class="review-status-bar">Item 0 de 0</div>
+            </div>
+
+            <div class="review-layout">
+                <!-- Left Split: Image Viewer -->
+                <div class="image-viewer-card">
+                    <img id="reviewImage" class="review-img" src="" alt="Imagem sob revisão">
+                </div>
+
+                <!-- Right Split: Meta Data Comparison -->
+                <div class="meta-detail-card">
+                    
+                    <div class="failure-banner">
+                        <div class="failure-banner-dot"></div>
+                        <span id="reviewFailureReason">Divergência de Preço Detectada</span>
+                    </div>
+
+                    <div class="meta-row-2col">
+                        <div class="meta-field">
+                            <div class="meta-field-label">Aliança / Marca</div>
+                            <div id="reviewBrand" class="meta-field-value">-</div>
+                        </div>
+                        <div class="meta-field">
+                            <div class="meta-field-label">Valor Esperado (Planilha)</div>
+                            <div id="reviewValue" class="meta-field-value" style="color:var(--green); font-weight:700;">-</div>
+                        </div>
+                    </div>
+
+                    <div class="meta-field">
+                        <div class="meta-field-label">Título da Recompensa</div>
+                        <div id="reviewTitle" class="meta-field-value">-</div>
+                    </div>
+
+                    <div class="meta-field">
+                        <div class="meta-field-label">Descrição</div>
+                        <div id="reviewDesc" class="meta-field-value">-</div>
+                    </div>
+
+                    <div class="meta-field">
+                        <div class="meta-field-label">Texto Extraído da Imagem (OCR)</div>
+                        <div id="reviewOcrText" class="ocr-box">-</div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="action-container">
+                        <div class="action-button-group">
+                            <button id="rejectBtn" class="btn btn-danger">
+                                ❌ Rejeitar Imagem
+                                <div class="hotkey-indicator">Seta Esquerda (←)</div>
+                            </button>
+                            <button id="approveBtn" class="btn">
+                                 Aprovar Imagem
+                                <div class="hotkey-indicator">Seta Direita (→)</div>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Export Section -->
+        <div id="exportSection" class="state-section panel" style="flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:4rem 2rem; gap:1.5rem;">
+            <div style="font-size:4rem; animation: pulse 2s infinite;">🎉</div>
+            <h2 style="font-size:2rem; font-weight:700;">Auditoria Concluída!</h2>
+            <p style="color:var(--text-2); max-width:500px; line-height:1.6; font-size:0.95rem;">
+                Todos os itens da planilha foram analisados e revisados. O arquivo final de saída contém apenas as recompensas cujas imagens passaram na auditoria.
+            </p>
+
+            <div class="metrics-grid" style="width:100%; max-width:500px; margin: 1rem 0;">
+                <div class="metric-card">
+                    <div id="finalTotal" class="metric-value">0</div>
+                    <div class="metric-label">Lidas</div>
+                </div>
+                <div class="metric-card">
+                    <div id="finalApproved" class="metric-value pass">0</div>
+                    <div class="metric-label">Aprovadas</div>
+                </div>
+                <div class="metric-card">
+                    <div id="finalRejected" class="metric-value fail">0</div>
+                    <div class="metric-label">Rejeitadas</div>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:1rem; width:100%; max-width:500px;">
+                <button id="exportCsvBtn" class="btn" style="flex-grow:1;">Exportar Planilha (CSV)</button>
+                <button id="restartBtn" class="btn btn-secondary" style="flex-grow:1;">Nova Auditoria</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Hidden canvas to render images and bypass cross-origin pixel issues -->
+    <canvas id="hiddenCanvas"></canvas>
+
+    <script>
+        // ============================================================
+        // JavaScript Application State and Logic
+        // ============================================================
+
+        // Data Storage
+        let rawData = [];         // Raw loaded parsed grid (matrix rows)
+        let headers = [];         // First row of spreadsheet
+        let processedRows = [];   // Rows processed during run
+        let approvedRows = [];    // Successful/Manual approved rows
+        let rejectedRows = [];    // Manually rejected rows
+        let failedQueue = [];     // Queue for manual review: {rowIdx, rowData, ocrText, reason}
+        let queueIndex = 0;       // Pointer for manual review queue
+
+        // Control State
+        let isAuditing = false;
+        let auditPointer = 1;     // Starts at row 1 (row 0 is header)
+        let ocrWorker = null;
+
+        // Cache URLs to save Tesseract passes
+        const ocrCache = new Map(); // url -> {text, confidence, err}
+
+        // DOM elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const sheetSelectGroup = document.getElementById('sheetSelectGroup');
+        const sheetSelect = document.getElementById('sheetSelect');
+        const setupSection = document.getElementById('setupSection');
+        const reviewSection = document.getElementById('reviewSection');
+        const exportSection = document.getElementById('exportSection');
+        const terminal = document.getElementById('terminal');
+        
+        // Select mappings
+        const colUrl = document.getElementById('colUrl');
+        const colId = document.getElementById('colId');
+        const colBrand = document.getElementById('colBrand');
+        const colValue = document.getElementById('colValue');
+        const colTitle = document.getElementById('colTitle');
+        const colDesc = document.getElementById('colDesc');
+
+        // Buttons
+        const startAuditBtn = document.getElementById('startAuditBtn');
+        const stopAuditBtn = document.getElementById('stopAuditBtn');
+        const goToReviewBtn = document.getElementById('goToReviewBtn');
+        const approveBtn = document.getElementById('approveBtn');
+        const rejectBtn = document.getElementById('rejectBtn');
+        const exportCsvBtn = document.getElementById('exportCsvBtn');
+        const restartBtn = document.getElementById('restartBtn');
+
+        // Counters & stats
+        const valTotal = document.getElementById('valTotal');
+        const valProcessed = document.getElementById('valProcessed');
+        const valPassed = document.getElementById('valPassed');
+        const valFailed = document.getElementById('valFailed');
+        const progressBarFill = document.getElementById('progressBarFill');
+        const progressPercent = document.getElementById('progressPercent');
+
+        // Review selectors
+        const reviewImage = document.getElementById('reviewImage');
+        const reviewFailureReason = document.getElementById('reviewFailureReason');
+        const reviewBrand = document.getElementById('reviewBrand');
+        const reviewValue = document.getElementById('reviewValue');
+        const reviewTitle = document.getElementById('reviewTitle');
+        const reviewDesc = document.getElementById('reviewDesc');
+        const reviewOcrText = document.getElementById('reviewOcrText');
+        const reviewCounter = document.getElementById('reviewCounter');
+
+        // ── Drag & Drop Event Listeners ──
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // ── File Handler ──
+        let workbookInstance = null;
+        function handleFile(file) {
+            logTerminal(`Carregando arquivo: ${file.name}...`, 'info');
+            
+            const reader = new FileReader();
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            if (ext === 'xlsx') {
+                reader.onload = function(e) {
+                    const data = new Uint8Array(e.target.result);
+                    workbookInstance = XLSX.read(data, { type: 'array' });
+                    
+                    // List sheets
+                    sheetSelect.innerHTML = '';
+                    workbookInstance.SheetNames.forEach(sheetName => {
+                        const opt = document.createElement('option');
+                        opt.value = sheetName;
+                        opt.textContent = sheetName;
+                        sheetSelect.appendChild(opt);
+                    });
+
+                    // Set default sheet if names match
+                    let targetSheet = workbookInstance.SheetNames[0];
+                    workbookInstance.SheetNames.forEach(name => {
+                        if (name.toLowerCase().includes('imagem') || name.toLowerCase().includes('prêmio')) {
+                            targetSheet = name;
+                        }
+                    });
+                    sheetSelect.value = targetSheet;
+                    sheetSelectGroup.style.display = 'block';
+                    
+                    loadExcelSheet(targetSheet);
+                };
+                reader.readAsArrayBuffer(file);
+            } else if (ext === 'csv') {
+                reader.onload = function(e) {
+                    Papa.parse(e.target.result, {
+                        complete: function(results) {
+                            rawData = results.data;
+                            headers = rawData[0] || [];
+                            sheetSelectGroup.style.display = 'none';
+                            initMappingSelectors();
+                        },
+                        error: function(err) {
+                            logTerminal(`Erro ao ler CSV: ${err.message}`, 'error');
+                        }
+                    });
+                };
+                reader.readAsText(file, 'UTF-8'); // Brazilian files frequently export in UTF-8 or ANSI
+            } else {
+                logTerminal(`Formato de arquivo não suportado (.${ext}).`, 'error');
+            }
+        }
+
+        sheetSelect.addEventListener('change', (e) => {
+            loadExcelSheet(e.target.value);
+        });
+
+        function loadExcelSheet(sheetName) {
+            if (!workbookInstance) return;
+            const worksheet = workbookInstance.Sheets[sheetName];
+            // Read as array of arrays (raw cells grid) to maintain original indexes
+            rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            headers = rawData[0] || [];
+            initMappingSelectors();
+        }
+
+        // ── Auto Mapping Headers ──
+        function initMappingSelectors() {
+            if (headers.length === 0) {
+                logTerminal('Planilha vazia ou sem cabeçalhos.', 'error');
+                return;
+            }
+
+            // Populate dropdowns
+            const selectors = [colUrl, colId, colBrand, colValue, colTitle, colDesc];
+            selectors.forEach(sel => {
+                sel.innerHTML = '';
+                // Add default empty
+                const emptyOpt = document.createElement('option');
+                emptyOpt.value = '';
+                emptyOpt.textContent = '-- Selecionar Coluna --';
+                sel.appendChild(emptyOpt);
+                
+                headers.forEach((h, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    opt.textContent = `${h} (Coluna ${idx + 1})`;
+                    sel.appendChild(opt);
+                });
+            });
+
+            // Heuristics for auto-mapping
+            headers.forEach((h, idx) => {
+                const hClean = h.toLowerCase().trim();
+                
+                if (hClean.includes('photo/href') || hClean === 'photo' || hClean.includes('imagem') || (hClean.includes('href') && !hClean.includes('wide') && !hClean.includes('icon'))) {
+                    colUrl.value = idx;
+                }
+                if (hClean === 'name' || hClean === 'id da recompensa' || hClean === 'id' || hClean === 'slug' || hClean === 'identificador') {
+                    colId.value = idx;
+                }
+                if (hClean.includes('alliance/name') || hClean.includes('aliança') || hClean.includes('brand') || hClean === 'marca') {
+                    colBrand.value = idx;
+                }
+                if (hClean.includes('facevalue') || hClean.includes('valor oficial') || hClean.includes('preço') || hClean.includes('valor')) {
+                    colValue.value = idx;
+                }
+                if (hClean === 'title' || hClean === 'título' || hClean === 'nome da recompensa' || hClean === 'nome') {
+                    colTitle.value = idx;
+                }
+                if (hClean === 'description' || hClean.includes('descrição') || hClean.includes('regras')) {
+                    colDesc.value = idx;
+                }
+            });
+
+            logTerminal(`Planilha carregada. Encontradas ${rawData.length} linhas. Colunas mapeadas automaticamente.`, 'success');
+            
+            // Show setup panel
+            setupSection.classList.add('active');
+            dropZone.style.display = 'none';
+            
+            // Reset statistics
+            auditPointer = 1;
+            processedRows = [];
+            approvedRows = [];
+            rejectedRows = [];
+            failedQueue = [];
+            queueIndex = 0;
+            
+            updateCounters();
+        }
+
+        // Update display numbers
+        function updateCounters() {
+            const total = Math.max(0, rawData.length - 1);
+            valTotal.textContent = total;
+            valProcessed.textContent = processedRows.length;
+            valPassed.textContent = approvedRows.length;
+            valFailed.textContent = failedQueue.length;
+
+            if (total > 0) {
+                const pct = Math.round((processedRows.length / total) * 100);
+                progressBarFill.style.width = `${pct}%`;
+                progressPercent.textContent = `${pct}%`;
+            } else {
+                progressBarFill.style.width = `0%`;
+                progressPercent.textContent = `0%`;
+            }
+
+            goToReviewBtn.textContent = `Revisar Pendentes (${failedQueue.length})`;
+            goToReviewBtn.disabled = failedQueue.length === 0;
+        }
+
+        function logTerminal(msg, type = '') {
+            const log = document.createElement('div');
+            log.className = `terminal-log ${type}`;
+            log.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            terminal.appendChild(log);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // ── OCR & Auditing Core ──
+        startAuditBtn.addEventListener('click', async () => {
+            if (isAuditing) return;
+            
+            // Validate mapping
+            if (!colUrl.value) {
+                alert('A coluna de URL de imagem é obrigatória!');
+                return;
+            }
+
+            isAuditing = true;
+            startAuditBtn.disabled = true;
+            stopAuditBtn.disabled = false;
+            sheetSelect.disabled = true;
+            colUrl.disabled = true;
+            colId.disabled = true;
+            colBrand.disabled = true;
+            colValue.disabled = true;
+            colTitle.disabled = true;
+            colDesc.disabled = true;
+
+            logTerminal('Iniciando Tesseract OCR...', 'info');
+            
+            // Initialize OCR Worker
+            if (!ocrWorker) {
+                ocrWorker = await Tesseract.createWorker('por+eng');
+            }
+
+            logTerminal('Começando processamento das imagens...', 'success');
+            auditLoop();
+        });
+
+        stopAuditBtn.addEventListener('click', () => {
+            isAuditing = false;
+            startAuditBtn.disabled = false;
+            stopAuditBtn.disabled = true;
+            logTerminal('Auditoria pausada pelo usuário.', 'info');
+        });
+
+        async function auditLoop() {
+            const total = rawData.length;
+            const urlIdx = parseInt(colUrl.value);
+            const idIdx = colId.value ? parseInt(colId.value) : -1;
+            const valIdx = colValue.value ? parseInt(colValue.value) : -1;
+            
+            while (isAuditing && auditPointer < total) {
+                const row = rawData[auditPointer];
+                
+                // Skip completely empty rows
+                if (!row || row.length === 0) {
+                    auditPointer++;
+                    continue;
+                }
+
+                const url = row[urlIdx] ? row[urlIdx].toString().trim() : '';
+                const id = idIdx >= 0 && row[idIdx] ? row[idIdx].toString().trim() : `Linha_${auditPointer + 1}`;
+                const expectedPrice = valIdx >= 0 && row[valIdx] ? row[valIdx].toString().trim() : '';
+
+                if (!url || !url.startsWith('http')) {
+                    // Row doesn't contain a valid image URL, skip
+                    auditPointer++;
+                    continue;
+                }
+
+                logTerminal(`Analisando item: "${id}"...`, 'info');
+                
+                let ocrResult = null;
+
+                // Check cache first to avoid re-downloads
+                if (ocrCache.has(url)) {
+                    ocrResult = ocrCache.get(url);
+                    logTerminal(`Cache atingido para: ${url.substring(0, 45)}...`, 'info');
+                } else {
+                    // Try fetching & running Tesseract
+                    try {
+                        ocrResult = await runOcrOnUrl(url);
+                        ocrCache.set(url, ocrResult);
+                    } catch (err) {
+                        ocrResult = { text: '', confidence: 0, err: err.message };
+                        ocrCache.set(url, ocrResult);
+                    }
+                }
+
+                // Verify Results
+                let status = 'passed';
+                let reason = '';
+
+                if (ocrResult.err) {
+                    status = 'failed';
+                    reason = `Erro de Carregamento / CORS (${ocrResult.err})`;
+                } else {
+                    const textClean = ocrResult.text.toLowerCase();
+                    
+                    // Price check
+                    if (expectedPrice) {
+                        // Extract digit string, e.g. R$ 24,00 -> "24" or 24.00 -> "24"
+                        const digitsMatch = expectedPrice.match(/\d+/);
+                        if (digitsMatch) {
+                            const digits = digitsMatch[0];
+                            // Search for digit sequence in OCR text
+                            const priceRegex = new RegExp(`\\b${digits}\\b`);
+                            if (!priceRegex.test(textClean) && !textClean.includes(digits)) {
+                                status = 'failed';
+                                reason = `Preço divergente (Esperava encontrar "${digits}", mas não localizou)`;
+                            }
+                        }
+                    }
+
+                    // Quality check
+                    if (status === 'passed' && textClean.trim() === '') {
+                        status = 'failed';
+                        reason = 'Nenhum texto legível detectado (imagem vazia ou muito desfocada)';
+                    }
+                }
+
+                // Route accordingly
+                const reportItem = {
+                    rowIdx: auditPointer,
+                    rowData: row,
+                    ocrText: ocrResult.text,
+                    reason: reason,
+                    url: url,
+                    id: id,
+                    price: expectedPrice
+                };
+
+                processedRows.push(reportItem);
+
+                if (status === 'passed') {
+                    approvedRows.push(reportItem);
+                    logTerminal(`[✔] Aprovado: ${id}`, 'success');
+                } else {
+                    failedQueue.push(reportItem);
+                    logTerminal(`[✘] Rejeitado (${reason}): ${id}`, 'error');
+                }
+
+                updateCounters();
+                auditPointer++;
+            }
+
+            if (auditPointer >= total) {
+                isAuditing = false;
+                startAuditBtn.disabled = true;
+                stopAuditBtn.disabled = true;
+                logTerminal('Auditoria finalizada. Todos os itens processados!', 'success');
+                
+                if (failedQueue.length > 0) {
+                    goToReviewBtn.click(); // Auto-focus review panel if items exist
+                } else {
+                    showExportSection();
+                }
+            }
+        }
+
+        // Load image, draw on canvas, execute OCR
+        function runOcrOnUrl(urlStr) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous'; // Enforce CORS query
+                
+                // Add scale 4x prefix automatically if requested (standard assets hosted at 4x)
+                let targetUrl = urlStr;
+                if (urlStr.includes('assets.bonuz.com') && !urlStr.includes('@4x')) {
+                    const extIdx = urlStr.lastIndexOf('.');
+                    if (extIdx !== -1) {
+                        targetUrl = urlStr.substring(0, extIdx) + '@4x' + urlStr.substring(extIdx);
+                    }
+                }
+
+                img.src = targetUrl;
+                
+                img.onload = async function() {
+                    try {
+                        const canvas = document.getElementById('hiddenCanvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        
+                        // Draw & optimize contrast
+                        ctx.drawImage(img, 0, 0);
+                        
+                        const result = await ocrWorker.recognize(canvas);
+                        resolve({
+                            text: result.data.text,
+                            confidence: result.data.confidence,
+                            err: null
+                        });
+                    } catch (ocrErr) {
+                        reject(new Error(`Falha OCR: ${ocrErr.message}`));
+                    }
+                };
+
+                img.onerror = function() {
+                    // Fallback to original URL without 4x scale if failed
+                    if (targetUrl !== urlStr) {
+                        img.src = urlStr; // Try original
+                        targetUrl = urlStr; // avoid infinite loop
+                    } else {
+                        reject(new Error('CORS / Imagem protegida ou inexistente'));
+                    }
+                };
+            });
+        }
+
+        // ── Navigation Review Wizard ──
+        goToReviewBtn.addEventListener('click', () => {
+            isAuditing = false; // Pause audit
+            setupSection.classList.remove('active');
+            reviewSection.classList.add('active');
+            
+            queueIndex = 0;
+            renderQueueItem();
+        });
+
+        function renderQueueItem() {
+            if (queueIndex < 0 || queueIndex >= failedQueue.length) {
+                // Done reviewing!
+                showExportSection();
+                return;
+            }
+
+            const item = failedQueue[queueIndex];
+            reviewCounter.textContent = `Item ${queueIndex + 1} de ${failedQueue.length}`;
+
+            // Load Image
+            reviewImage.src = item.url; // Native Image Tag loads even on CORS blockages
+
+            // Load Meta
+            reviewFailureReason.textContent = item.reason;
+            
+            const brandIdx = colBrand.value ? parseInt(colBrand.value) : -1;
+            reviewBrand.textContent = brandIdx >= 0 && item.rowData[brandIdx] ? item.rowData[brandIdx] : '-';
+            reviewValue.textContent = item.price ? item.price : 'Sem valor mapeado';
+            
+            const titleIdx = colTitle.value ? parseInt(colTitle.value) : -1;
+            reviewTitle.textContent = titleIdx >= 0 && item.rowData[titleIdx] ? item.rowData[titleIdx] : '-';
+            
+            const descIdx = colDesc.value ? parseInt(colDesc.value) : -1;
+            reviewDesc.textContent = descIdx >= 0 && item.rowData[descIdx] ? item.rowData[descIdx] : '-';
+
+            // Show OCR text with raw highlighting
+            if (item.ocrText.trim() === '') {
+                reviewOcrText.textContent = '[Nenhum texto legível extraído pela IA]';
+            } else {
+                reviewOcrText.textContent = item.ocrText;
+            }
+        }
+
+        // Approve Item
+        approveBtn.addEventListener('click', () => {
+            const item = failedQueue[queueIndex];
+            approvedRows.push(item);
+            
+            // Remove from failures visually
+            logTerminal(`[Mão] Aprovado Manualmente: ${item.id}`, 'success');
+            queueIndex++;
+            renderQueueItem();
+        });
+
+        // Reject Item
+        rejectBtn.addEventListener('click', () => {
+            const item = failedQueue[queueIndex];
+            rejectedRows.push(item);
+            
+            logTerminal(`[Mão] Rejeitado Manualmente: ${item.id}`, 'error');
+            queueIndex++;
+            renderQueueItem();
+        });
+
+        // Keyboard Shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (!reviewSection.classList.contains('active')) return;
+            
+            if (e.key === 'ArrowRight') {
+                approveBtn.click();
+            } else if (e.key === 'ArrowLeft') {
+                rejectBtn.click();
+            }
+        });
+
+        // ── Exporter ──
+        function showExportSection() {
+            reviewSection.classList.remove('active');
+            setupSection.classList.remove('active');
+            exportSection.classList.add('active');
+
+            document.getElementById('finalTotal').textContent = Math.max(0, rawData.length - 1);
+            document.getElementById('finalApproved').textContent = approvedRows.length;
+            document.getElementById('finalRejected').textContent = (rawData.length - 1) - approvedRows.length;
+        }
+
+        exportCsvBtn.addEventListener('click', () => {
+            // Recompile a clean CSV containing only approved rows
+            const outputRows = [headers];
+            
+            // Map approved indices
+            const approvedRowIndexes = new Set(approvedRows.map(item => item.rowIdx));
+            
+            for (let i = 1; i < rawData.length; i++) {
+                if (approvedRowIndexes.has(i)) {
+                    outputRows.push(rawData[i]);
+                }
+            }
+
+            // Convert back to CSV
+            const csv = Papa.unparse(outputRows, { delimiter: ';' }); // Export in Brazilian standard delimiter Semicolon
+            
+            const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' }); // Add BOM for Excel compatibility
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'planilha_recompensas_aprovadas.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        restartBtn.addEventListener('click', () => {
+            exportSection.classList.remove('active');
+            dropZone.style.display = 'block';
+            fileInput.value = '';
+            workbookInstance = null;
+        });
+
+    </script>
+</body>
+</html>
