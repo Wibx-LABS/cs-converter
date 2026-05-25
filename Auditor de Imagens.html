@@ -280,63 +280,78 @@
             background: #ff6868;
         }
 
-        /* ── Split Screen Review Wizard ── */
+        /* ── Whiteboard Stacked Review Wizard ── */
         .review-layout {
-            display: grid;
-            grid-template-columns: 6.5fr 5.5fr;
-            gap: 1.5rem;
-            align-items: stretch;
+            max-width: 640px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
         }
-        @media (max-width: 900px) {
-            .review-layout { grid-template-columns: 1fr; }
+
+        .review-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 1.75rem;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 1.15rem;
+        }
+
+        .review-title {
+            font-size: 1.45rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--text);
+            text-align: center;
+            line-height: 1.25;
+            margin-bottom: 0.2rem;
         }
 
         .image-viewer-card {
             background: #020202;
             border: 1px solid var(--border);
-            border-radius: var(--radius-xl);
-            padding: 1.5rem;
+            border-radius: var(--radius);
+            padding: 1rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 520px;
+            min-height: 380px;
             position: relative;
-            box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
             overflow: hidden;
+            width: 100%;
         }
         .review-img {
             max-width: 100%;
-            max-height: 480px;
+            max-height: 350px;
             object-fit: contain;
             border-radius: var(--radius-sm);
-            box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.8);
             transition: transform 0.3s;
         }
         .review-img:hover {
-            transform: scale(1.03);
+            transform: scale(1.02);
         }
 
-        .meta-detail-card {
-            display: flex;
-            flex-direction: column;
-            gap: 1.15rem;
-        }
         .meta-field {
             background: var(--surface-2);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 0.9rem 1.1rem;
+            padding: 0.85rem 1.05rem;
         }
         .meta-field-label {
-            font-size: 0.68rem;
+            font-size: 0.65rem;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.08em;
             color: var(--text-2);
-            margin-bottom: 0.3rem;
+            margin-bottom: 0.25rem;
         }
         .meta-field-value {
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             font-weight: 500;
             line-height: 1.4;
         }
@@ -377,26 +392,18 @@
         }
 
         .action-container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 1rem;
-            margin-top: auto;
-        }
-        .action-button-group {
-            display: flex;
-            gap: 1rem;
-            flex-grow: 1;
-        }
-        .action-button-group .btn {
-            flex-grow: 1;
+            width: 100%;
         }
         .hotkey-indicator {
-            font-size: 0.62rem;
+            font-size: 0.58rem;
             color: rgba(255,255,255,0.4);
             text-transform: uppercase;
             font-weight: 600;
-            margin-top: 0.25rem;
+            margin-top: 0.2rem;
+            text-align: center;
         }
         .btn-danger .hotkey-indicator {
             color: rgba(255,255,255,0.5);
@@ -601,61 +608,58 @@
                 <div id="progressText" class="progress-text">Item 0 de 0 (0%)</div>
             </div>
 
-            <!-- Main Split Layout -->
+            <!-- Main Layout: Centered Single Column Card -->
             <div class="review-layout">
-                <!-- Left Split: High-res Image Viewer -->
-                <div class="image-viewer-card">
-                    <div id="resBadge" class="res-badge">RETINA 4X</div>
-                    <img id="reviewImage" class="review-img" src="" alt="Imagem sob revisão" onerror="handleImageFallback(this)">
-                </div>
-
-                <!-- Right Split: Meta Data -->
-                <div class="meta-detail-card">
-                    <div class="meta-row-2col">
-                        <div class="meta-field">
-                            <div class="meta-field-label">Aliança / Marca</div>
-                            <div id="reviewBrand" class="meta-field-value">-</div>
-                        </div>
-                        <div class="meta-field">
-                            <div class="meta-field-label">Valor da Planilha</div>
-                            <div id="reviewValue" class="meta-field-value" style="color:var(--green); font-weight:700;">-</div>
-                        </div>
+                <!-- Stacked Card -->
+                <div class="review-card">
+                    <!-- Title -->
+                    <h2 id="reviewTitle" class="review-title">-</h2>
+                    
+                    <!-- Image Viewer -->
+                    <div class="image-viewer-card">
+                        <div id="resBadge" class="res-badge">RETINA 4X</div>
+                        <img id="reviewImage" class="review-img" src="" alt="Imagem sob revisão" onerror="handleImageFallback(this)">
                     </div>
 
+                    <!-- Value -->
                     <div class="meta-field">
-                        <div class="meta-field-label">Título da Recompensa</div>
-                        <div id="reviewTitle" class="meta-field-value">-</div>
+                        <div class="meta-field-label">Valor da Planilha</div>
+                        <div id="reviewValue" class="meta-field-value" style="color:var(--green); font-weight:700;">-</div>
                     </div>
 
+                    <!-- Description -->
                     <div class="meta-field">
                         <div class="meta-field-label">Descrição</div>
                         <div id="reviewDesc" class="meta-field-value">-</div>
                     </div>
 
+                    <!-- Brand / Alliance -->
                     <div class="meta-field">
+                        <div class="meta-field-label">Aliança / Marca</div>
+                        <div id="reviewBrand" class="meta-field-value">-</div>
+                    </div>
+
+                    <!-- Image URL -->
+                    <div class="meta-field" style="padding: 0.6rem 0.9rem;">
                         <div class="meta-field-label">URL da Imagem</div>
-                        <div id="reviewUrl" class="meta-field-value" style="font-family:monospace; font-size:0.75rem; word-break:break-all; color:var(--text-2);">-</div>
+                        <div id="reviewUrl" class="meta-field-value" style="font-family:monospace; font-size:0.7rem; word-break:break-all; color:var(--text-2);">-</div>
                     </div>
+                </div>
 
-                    <!-- Actions -->
-                    <div class="action-container">
-                        <button id="backBtn" class="btn btn-secondary" style="min-width:110px;" disabled>
-                            Voltar
-                            <div class="hotkey-indicator">Apagar / Backspace</div>
-                        </button>
-                        
-                        <div class="action-button-group">
-                            <button id="rejectBtn" class="btn btn-danger">
-                                Rejeitar
-                                <div class="hotkey-indicator">Seta Esquerda (←)</div>
-                            </button>
-                            <button id="approveBtn" class="btn">
-                                Aprovar
-                                <div class="hotkey-indicator">Seta Direita (→)</div>
-                            </button>
-                        </div>
-                    </div>
-
+                <!-- Actions (Buttons below the card) -->
+                <div class="action-container">
+                    <button id="backBtn" class="btn btn-secondary" disabled>
+                        Voltar
+                        <div class="hotkey-indicator">Apagar / Backspace</div>
+                    </button>
+                    <button id="rejectBtn" class="btn btn-danger">
+                        Rejeitar
+                        <div class="hotkey-indicator">Seta Esquerda (←)</div>
+                    </button>
+                    <button id="approveBtn" class="btn">
+                        Aprovar
+                        <div class="hotkey-indicator">Seta Direita (→)</div>
+                    </button>
                 </div>
             </div>
         </div>
